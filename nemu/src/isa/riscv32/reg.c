@@ -15,7 +15,7 @@
 
 #include <isa.h>
 #include "local-include/reg.h"
-
+word_t paddr_read(paddr_t addr, int len);
 const char *regs[] = {
   "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
   "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
@@ -24,8 +24,26 @@ const char *regs[] = {
 };
 
 void isa_reg_display() {
+  int i;
+  for(i = 0;i < ARRLEN(regs);i++)
+    printf("%-8s%-#20x%-20d\n",regs[i],cpu.gpr[i],cpu.gpr[i]);
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
+  s = s + 1;
+  if(strcmp(s,"pc")==0){
+    printf("%-8s\n","pc");
+    return paddr_read(cpu.pc,4);
+  }
+  
+  for(int k = 0;k<32;k++){
+    if(strcmp(s,regs[k])==0){
+      printf("%-8s\n",regs[k]);
+      return cpu.gpr[k];
+    }
+  }
+  printf("No The Reg:%8s\n",s);
+  *success = false;
+
   return 0;
 }

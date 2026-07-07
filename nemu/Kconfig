@@ -124,6 +124,10 @@ config CC_ASAN
   default n
 endmenu
 
+config WATCHPOINT  
+  bool "Enable set watchpoint"
+  default n
+
 menu "Testing and Debugging"
 
 

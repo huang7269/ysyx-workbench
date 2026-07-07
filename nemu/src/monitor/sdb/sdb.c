@@ -18,12 +18,14 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
-
+#include <config/watchpoint.h>
 static int is_batch_mode = false;
 
+void test_expr();
 void init_regex();
 void init_wp_pool();
-
+void wp_print();
+word_t paddr_read(paddr_t addr, int len);
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
   static char *line_read = NULL;
@@ -49,7 +51,131 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
+  nemu_state.state = NEMU_QUIT;
   return -1;
+}
+
+static int cmd_si(char *args){
+  int step = 1;
+  char *arg = strtok(args," ");
+
+  if(arg != NULL){
+    char *p = arg;
+    while(*p != '\0'){
+      if(!isdigit(*p)){
+        printf("Usage: si [num], num must be positive integer\n");
+        return 0;
+      }
+      p++;
+    }
+    step = atoi(arg);
+    if(step <= 0){
+      printf("Step number must greater than 0\n");
+      return 0;
+    }
+  }
+
+  cpu_exec(step);
+  return 0;
+}
+
+static int cmd_info(char *args) {
+  if(args == NULL) {
+    printf("Usage:info r OR w\n");
+    return 0;
+  }else{
+  char *arg = strtok(args," ");
+  if((strcmp(arg,"r")==0)){
+    isa_reg_display();
+   }
+  else if((strcmp(arg,"w")==0)){
+     wp_print();
+   }
+  else printf("No the function!\nPrint register status,Print monitoring point information,\"r\"or\"w\"\n");
+  }
+  return 0;
+}
+
+static int cmd_x(char *args) {
+  if(args == NULL){
+    printf("Usage:x n EXPR\n");
+    return 0;
+  }
+  char *arg = strtok(args," ");
+  if(arg == NULL){
+    printf("Usage:x n EXPR\n");
+    return 0;
+  }
+  int num = atoi(arg);
+  char *expr = strtok(NULL," ");
+  if(expr == NULL){
+    printf("Usage:x n EXPR\n");
+    return 0;
+  }
+  if(strtok(NULL," ")!=NULL){
+    printf("Usage:x n EXPR\n");
+    return 0;
+  }
+  paddr_t addr = strtol(expr,NULL,16);
+  for(int i = 0;i < num;i++){
+    printf("%-#20x%-#20x\n",addr +4*i,paddr_read(addr + 4*i,4));
+  }
+  return 0;
+}
+
+static int cmd_w(char *args) {
+	if(args == NULL){
+		printf("Usage:w EXPR\n");
+		return 0;
+	}
+	bool ok = true;
+	uint32_t res = expr(args,&ok);
+	if(ok == false){
+		printf("EXPR fault!\n");
+	}
+	else{
+	  wp_recode(args,res);
+	}
+	return 0;
+}
+
+static int cmd_d(char *args){
+	if(args == NULL){
+		printf("Usage:d N\n");
+	}
+	else{
+		int on = atoi(args);
+		wp_remove(on);
+	}
+	return 0;
+}
+
+static int cmd_p(char *args){
+	if(args == NULL){
+		printf("Usage:p EXPR\n");
+		return 0;
+	} 
+	static bool success_val = true;
+	static bool *success = &success_val;
+	uint32_t ret = expr(args,success);
+	if(*success == false){
+		printf("result is false\n");
+    *success = true;
+		return 0;
+	}
+	printf("%u\n",ret);
+	return 0;
+}
+
+static int cmd_test(char *argc){
+  if(argc != NULL){
+    printf("test expr");
+    return 0;
+  }
+  else{
+    test_expr();
+  }
+  return 0;
 }
 
 static int cmd_help(char *args);
@@ -64,7 +190,13 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
 
   /* TODO: Add more commands */
-
+  { "si", "Let the program execute N instructions in a single step and then suspend execution",cmd_si },
+  { "info","Print register status,Print monitoring point information",cmd_info },
+  { "w","Set monitoring point,Pause program execution when the value of expression EXPR changes.",cmd_w},
+  { "d","Delete the monitoring point with sequence number N.",cmd_d},
+  { "x","Find the value of the expression EXPR and use the result as the starting memory Address, output N consecutive 4 bytes in hexadecimal form",cmd_x},
+  { "p","expression evaluation",cmd_p},
+  { "test","test expr",cmd_test},
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -132,6 +264,35 @@ void sdb_mainloop() {
 
     if (i == NR_CMD) { printf("Unknown command '%s'\n", cmd); }
   }
+}
+
+void test_expr(){
+  FILE *fp = fopen("/home/anonymous/ysyx-workbench/nemu/tools/gen-expr/input","r");
+  if(fp == NULL) perror("test_expr fail");
+  uint32_t result;
+  size_t len = 0;
+  ssize_t read;
+  char *formula = NULL;
+  
+  bool success = true;
+  while(1){
+    if((fscanf(fp,"%u",&result)==EOF)) break;
+    read = getline(&formula,&len,fp);
+    formula[read-1] = '\0';
+    
+    uint32_t ret = expr(formula,&success);
+    
+    assert(success);
+    if(result != ret){
+      printf("ret = %u,test = %u\n",ret,result);
+      puts(formula);
+    
+      assert(0);
+    }
+  }
+  Log("test_expr pass!");
+  free(formula);
+  fclose(fp);
 }
 
 void init_sdb() {
