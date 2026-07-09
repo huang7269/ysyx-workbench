@@ -17,6 +17,7 @@
 #define __UTILS_H__
 
 #include <common.h>
+#include <elf.h>
 
 // ----------- state -----------
 
@@ -73,5 +74,41 @@ uint64_t get_time();
     log_write(__VA_ARGS__); \
   } while (0)
 
+
+// ----------- trace -----------
+
+#ifdef CONFIG_ITRACE
+  #define IRINGBUF_MAX 15
+
+  typedef struct iringbuf{
+      uint32_t pc[IRINGBUF_MAX];
+      uint32_t inst[IRINGBUF_MAX];
+      uint32_t irb_w;
+      uint32_t irb_r;
+  } iringbuf;
+
+  extern iringbuf irb;
+#endif
+
+void iringbuf_inst(uint32_t pc,uint32_t inst);
+void iringbuf_display();
+void display_pread(paddr_t addr, int len);
+void display_pwrite(paddr_t addr, int len, word_t data);
+
+#ifdef CONFIG_FTRACE
+  typedef struct {
+      char name[100];
+      Elf32_Addr addr;
+      unsigned char info;
+      Elf32_Word size;
+  } symbol_table;
+
+  extern symbol_table *symbol_tables;
+#endif
+
+void init_ftrace(const char *elf_file);
+void call_ftrace(paddr_t pc,paddr_t dnpc);
+void ret_ftrace(paddr_t pc);
+int find_symbol_func(paddr_t target, bool is_call);
 
 #endif
