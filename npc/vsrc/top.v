@@ -5,15 +5,23 @@ module top (
     input wire clock
 );
 
-    wire [31:0] Instruction;
-    wire [31:0] PC_PLUS_4;
-    wire [31:0] IR;
-    wire [31:0] Instruction_imm;
+    //dpi-c ebreak
+    import "DPI-C" function void ebreak();
+    always @(posedge clock) begin
+        if(!reset && instruction == 32'b0000000_00001_00000_000_00000_1110011) begin
+            ebreak();
+        end
+    end
+
+    wire [31:0] instruction;
+    wire [31:0] pc_plus;
+    wire [31:0] rom_inst;
+    wire [31:0] instruction_imm;
     wire [4:0]  rs1;
     wire [4:0]  rs2;
     wire [4:0]  rd;
     wire [6:0]  opcode;
-    wire [2:0]  fun_1;
+    wire [2:0]  funct3;
     wire [31:0] rdata_1;
     wire [31:0] rdata_2;
     wire [3:0]  alu_ctrl;
@@ -24,33 +32,33 @@ module top (
     wire        AluSrc;
     wire [2:0]  Aluop;
 
-    assign opcode = Instruction[6:0];
-    assign fun_1  = Instruction[14:12];
+    assign opcode = instruction[6:0];
+    assign funct3 = instruction[14:12];
 
     Rom rom (
-        .PC                    (PC_PLUS_4),
-        .Instruction           (IR)
+        .pc                    (pc_plus),
+        .instruction           (rom_inst)
     );
 
     Ifetc ifetch (
         .reset                 (reset),
         .clock                 (clock),
-        .Instruction           (Instruction),
-        .PC_PLUS_4_out         (PC_PLUS_4),
-        .IR                    (IR)
+        .instruction           (instruction),
+        .pc_plus_4             (pc_plus),
+        .rom_inst              (rom_inst)
     );
 
     Idecode idecode (
-        .Instruction           (IR),
-        .Instruction_imm       (Instruction_imm),
+        .instruction           (instruction),
+        .instruction_imm       (instruction_imm),
         .read_register_addr_1  (rs1),
         .read_register_addr_2  (rs2),
         .write_register_addr   (rd)
     );
     
-    Icontrol iconctrol (
+    Icontrol icontrol (
         .opcode                (opcode),
-        .fun_1                 (fun_1),
+        .funct3                (funct3),
         .RegWrite              (RegWrite),
         .AluSrc                (AluSrc),
         .Aluop                 (Aluop)
@@ -78,7 +86,7 @@ module top (
         .AluSrc                (AluSrc),
         .rs1                   (rdata_1),
         .rs2                   (rdata_2),
-        .Immediate             (Instruction_imm),
+        .immediate             (instruction_imm),
         .Alu_result            (alu_result)
     );
 

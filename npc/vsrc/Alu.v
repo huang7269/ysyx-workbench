@@ -5,16 +5,16 @@ module Alu (
     input  wire        AluSrc,
     input  wire [31:0] rs1,
     input  wire [31:0] rs2,
-    input  wire [31:0] Immediate,
+    input  wire [31:0] immediate,
     output reg  [31:0] Alu_result
 );
     wire [31:0] Ainput;
     wire [31:0] Binput;
 
     assign Ainput = rs1;
-    assign Binput = (AluSrc == 1'b1) ? Immediate : rs2;
+    assign Binput = (AluSrc == 1'b1) ? immediate : rs2;
 
-    always @(alu_ctrl or Ainput or Binput) begin
+    always @(*) begin
         case (alu_ctrl)
             4'b0001: Alu_result =  Ainput + Binput;
 
